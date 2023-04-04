@@ -1,40 +1,130 @@
-// const hello = "Hello World";
-// console.log(hello);//Sync, block
 const fs = require("fs");
+const http = require("http"); //networking capabilities
+const url = require("url");
+const slugify = require("slugify");
 
-// const textIn = fs.readFileSync("./txt/input.txt", "utf-8");
-// console.log(textIn);
+const replaceTemplate = require("./modules/replaceTemplate");
 
-// const textOut = `This is what we know about the avocado: ${textIn}.\nCreated on ${Date.now()}`;
-// fs.writeFileSync("./txt/output.txt", textOut);
-// console.log("File written!");
+/////////////////////////////////////////////////////////////////////////
+//FILES
+/* const hello = "Hello World";
+ console.log(hello);//Sync, block
+
+ const textIn = fs.readFileSync("./txt/input.txt", "utf-8");
+ console.log(textIn);
+ const textOut = `This is what we know about the avocado: ${textIn}.\nCreated on ${Date.now()}`;
+ fs.writeFileSync("./txt/output.txt", textOut);
+ console.log("File written!"); */
 
 //Non-Blocking, Asynchronous
-fs.readFile("./txt/start.txt", "utf-8", (err, data1) => {
-  if (err) return console.log("ERROR!");
+// fs.readFile("./txt/start.txt", "utf-8", (err, data1) => {
+//   if (err) return console.log("ERROR!");
 
-  fs.readFile(`./txt/${data1}.txt`, "utf-8", (err, data2) => {
-    console.log(data2);
-    fs.readFile("./txt/append.txt", "utf-8", (err, data3) => {
-      console.log(data3);
+//   fs.readFile(`./txt/${data1}.txt`, "utf-8", (err, data2) => {
+//     console.log(data2);
+//     fs.readFile("./txt/append.txt", "utf-8", (err, data3) => {
+//       console.log(data3);
 
-      fs.writeFile("./txt/final.txt", `${data2}\n${data3}`, "utf-8", (err) => {
-        console.log("your file has been written ");
-      });
+//       fs.writeFile("./txt/final.txt", `${data2}\n${data3}`, "utf-8", (err) => {
+//         console.log("your file has been written ");
+//       });
+//     });
+//   });
+// });
+// console.log("Will read file!");
+
+//////////////////////////////////////////////////////////////////////////
+//creating a web server aync
+/*const server = http.createServer((req, res) => {
+  const pathName = req.url;
+
+  if (pathName === "/" || pathName === "/overview") {
+    res.end("This is the OVERVIEW");
+  } else if (pathName === "/product") {
+    res.end("This is the PRODUCT");
+  } else if (pathName === "/api") {
+    fs.readFile(`${__dirname}/dev-data/data.json`, "utf-8", (err, data) => {
+      const productData = JSON.parse(data);
+      //   console.log(productData);
+      res.writeHead(200, { "Content-type": "application/json" });
+      res.end(data);
     });
-  });
+  } else {
+    res.writeHead(404, {
+      "Content-type": "text/html",
+      "my-own-header": "hello-world",
+    });
+    res.end("<h1>Page not found!</h1>");
+  }
 });
-console.log("Will read file!");
 
-/**This code snippet reads the content of three files using the fs.readFile() method in Node.js, concatenates them and writes them to a new file using fs.writeFile() method.
+server.listen(8000, "127.0.0.1", () => {
+  console.log("Listening to requests on port 8000");
+}); */
 
-The code starts by reading the content of a file named start.txt located in the ./txt/ directory. If the file is read successfully, its content is used to construct the name of the second file to be read.
- If there is an error reading the file, the message "ERROR!" is printed to the console.
+////////////////////////////////////////////////////////////////////////////////
+//creating a web server sync
 
-The content of the second file, which is named after the content of the first file, is then read. If this operation is successful, its content is logged to the console.
+const tempOverview = fs.readFileSync(
+  `${__dirname}/templates/template-overview.html`,
+  "utf-8"
+);
+const tempCard = fs.readFileSync(
+  `${__dirname}/templates/template-card.html`,
+  "utf-8"
+);
+const tempProduct = fs.readFileSync(
+  `${__dirname}/templates/template-product.html`,
+  "utf-8"
+);
 
-The content of the third file, named append.txt located in the ./txt/ directory, is then read. If this operation is successful, its content is also logged to the console.
+const data = fs.readFileSync(`${__dirname}/dev-data/data.json`, "utf-8");
+const dataObj = JSON.parse(data);
 
-Finally, the contents of the second and third files are concatenated and written to a new file named final.txt located in the ./txt/ directory. If this operation is successful, a message "your file has been written" is printed to the console.
+const slugs = dataObj.map((el) => slugify(el.productName, { lower: true }));
+console.log(slugs);
 
-Note that the fs.readFile() and fs.writeFile() methods are asynchronous, which means that the console.log("Will read file!") statement at the end of the code will be executed before the file reading and writing operations are completed. */
+const server = http.createServer((req, res) => {
+  const { query, pathname } = url.parse(req.url, true);
+
+  // Overview page
+  if (pathname === "/" || pathname === "/overview") {
+    res.writeHead(200, {
+      "Content-type": "text/html",
+    });
+
+    const cardsHtml = dataObj
+      .map((el) => replaceTemplate(tempCard, el))
+      .join("");
+    const output = tempOverview.replace("{%PRODUCT_CARDS%}", cardsHtml);
+    res.end(output);
+
+    // Product page
+  } else if (pathname === "/product") {
+    res.writeHead(200, {
+      "Content-type": "text/html",
+    });
+    const product = dataObj[query.id];
+    const output = replaceTemplate(tempProduct, product);
+    res.end(output);
+
+    // API
+  } else if (pathname === "/api") {
+    res.writeHead(200, {
+      "Content-type": "application/json",
+    });
+    res.end(data);
+
+    // Not found
+  } else {
+    res.writeHead(404, {
+      "Content-type": "text/html",
+      "my-own-header": "hello-world",
+    });
+    res.end("<h1>Page not found!</h1>");
+  }
+});
+
+server.listen(8000, "127.0.0.1", () => {
+  console.log("Listening to requests on port 8000");
+});
